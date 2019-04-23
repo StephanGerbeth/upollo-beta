@@ -1,0 +1,221 @@
+// process.env.DEBUG = 'nuxt:*';
+
+const path = require('path');
+const open = require('open');
+
+module.exports = {
+  dev: process.env.NODE_ENV === 'development',
+  srcDir: 'src/',
+  css: [],
+  env: {},
+
+  server: {
+    port: 8050, // default: 3000
+    host: '0.0.0.0', // default: localhost
+  },
+
+  build: {
+    analyze: getAnalyzerConfig(),
+    babel: {
+      presets ({ isServer }) {
+        const targets = isServer ? { node: 'current' } : { ie: 11 };
+        return [
+          [require.resolve('@nuxt/babel-preset-app'), { targets }]
+        ];
+      }
+    },
+    postcss: {
+      plugins: {
+        'postcss-normalize': {},
+        'postcss-object-fit-images': {},
+        '@fullhuman/postcss-purgecss': {
+          content: [
+            'src/pages/**/*.vue',
+            'src/layouts/**/*.vue',
+            'src/components/**/*.vue'
+          ],
+          whitelist: ['html', 'body'],
+          whitelistPatterns: [/nuxt-/]
+        },
+        'postcss-momentum-scrolling': ['scroll'],
+        'rucksack-css': {}
+      },
+      preset: {
+        stage: 0,
+        features: {
+          'nesting-rules': true
+        },
+        importFrom: 'src/globals/postcss.js'
+      }
+    },
+    parallel: true,
+    transpile: []
+  },
+
+  generate: {
+    dir: 'dist/website'
+  },
+
+  render: {
+    http2: { push: true }
+  },
+
+  router: {
+    base: '/'
+  },
+
+  serverMiddleware: [
+    // Will register file from project api directory to handle /api/* requires
+    { path: '/api/url-shortener', handler: '@/api/urlShortener.js' }
+  ],
+
+  hooks: {
+    build: {
+      done: function () {
+        if (process.env.NODE_ENV === 'development' && !process.env.TRAVIS) {
+          open('http://localhost:8050', { app: ['google chrome', '--incognito'] });
+        }
+      }
+    }
+  },
+
+  plugins: [
+    { src: '@/plugins/intersectionObserver' },
+    { src: '@/plugins/validate.js' },
+  ],
+
+  modules: [
+    '@/modules/fix/image',
+    '@/modules/virtual',
+    '@/modules/svg',
+    '@/modules/webp',
+    '@/modules/image',
+    ['nuxt-validate', {
+      inject: false
+    }],
+    ['@nuxtjs/axios', {
+      baseURL: 'http://localhost:8050'
+    }],
+    ['@nuxtjs/auth', {
+      redirect: {
+        callback: '/callback'
+      },
+      strategies: {
+        google: {
+          client_id:
+            '999749012759-rqac2blg4pk8bph8quv9au77a20povpn.apps.googleusercontent.com'
+        },
+        facebook: {
+          client_id: '574116776405805',
+          userinfo_endpoint: 'https://graph.facebook.com/v3.2/me?fields=about,name,picture{url},email',
+          scope: ['public_profile', 'email'],
+          'authorization_endpoint': 'https://facebook.com/v3.2/dialog/oauth'
+        }
+      },
+      plugins: ['~/plugins/auth.js']
+    }],
+    ['nuxt-i18n', {
+      locales: [
+        {
+          code: 'en',
+          iso: 'en-US',
+          file: 'en.json',
+        },
+        {
+          code: 'de',
+          iso: 'de-DE',
+          file: 'de.json'
+        }
+      ],
+      lazy: true,
+      langDir: 'globals/locales/',
+      defaultLocale: 'de',
+      strategy: 'prefix_except_default',
+      seo: true,
+      vueI18nLoader: true
+    }],
+    ['@nuxtjs/pwa', {
+      dev: process.env.NODE_ENV === 'development',
+      icon: {
+        iconSrc: 'src/static/favicon.png',
+        sizes: [16, 120, 144, 152, 192, 384, 512]
+      },
+      meta: {
+        charset: 'utf-8',
+        viewport: 'width=device-width, initial-scale=1',
+        mobileApp: true,
+        mobileAppIOS: true,
+        appleStatusBarStyle: 'default',
+        favicon: true,
+        name: 'TITLE',
+        author: '',
+        description: '',
+        theme_color: 'black',
+        lang: 'de',
+        ogType: 'website',
+        ogSiteName: 'ogSITE_NAME',
+        ogTitle: 'ogTITLE',
+        ogDescription: 'ogDESCRIPTION',
+        ogHost: undefined,
+        ogImage: true
+      },
+      manifest: {
+        name: 'Sample MANIFEST',
+        short_name: 'Sample',
+        lang: 'de'
+      }
+    }],
+    ['@nuxtjs/sitemap', {
+      path: '/sitemap.xml',
+      hostname: 'https://localhost:8050',
+      cacheTime: 1000 * 60 * 15,
+      gzip: false,
+      generate: true,
+      exclude: [],
+      routes: []
+    }],
+    ['@nuxtjs/robots', {
+      UserAgent: '*',
+      Disallow: '',
+      Sitemap: 'https://localhost:8050/sitemap.xml'
+    }],
+    ['@/modules/licence', {
+      perChunkOutput: false,
+      handleMissingLicenseText: (packageName) => {
+        console.log('Cannot find license for ' + packageName);
+        return 'NO LICENSE TEXT';
+      }
+    }]
+  ],
+
+  head: {
+    meta: [
+      { 'http-equiv': 'X-UA-Compatible', content: 'IE=edge' }
+    ],
+    link: [],
+    script: [
+      {
+        src:
+          'https://cdn.polyfill.io/v2/polyfill.min.js?features=HTMLPictureElement',
+        defer: true
+      },
+      {
+        innerHTML:
+          'document.createElement( "picture" );document.createElement( "source" );'
+      }
+    ],
+    __dangerouslyDisableSanitizers: ['script']
+  }
+};
+
+function getAnalyzerConfig () {
+  if (process.env.NODE_ENV === 'static') {
+    return {
+      analyzerMode: 'static',
+      reportFilename: path.resolve('dist/reports/webpack-bundle-analyzer.html'),
+      openAnalyzer: true
+    };
+  } else {
+    return false;
+  }
+}
